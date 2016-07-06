@@ -1,0 +1,928 @@
+#!/usr/bin/perl -W
+#
+# gas2nasm.pl - Skrypt konwertujacy kod w skladni GAS (GNU as) na kod w skladni NASMa
+# gas2nasm.pl - A script which converts GAS (GNU as) code to NASM code.
+#
+#	Copyright (C) 2006-2008 Bogdan 'bogdro' Drozdowski, http://rudy.mif.pg.gda.pl/~bogdro/inne/
+#		(bogdandr AT op.pl, bogdro AT rudy.mif.pg.gda.pl)
+#
+#	Licencja / Licence:
+#	Powszechna Licencja Publiczna GNU v3+ / GNU General Public Licence v3+
+#
+#	Ostatnia modyfikacja / Last modified : 2008-05-18
+#
+#	Sposob uzycia / Syntax:
+#		./gas2nasm.pl xxx.s [yyy.asm]
+#
+# Jesli nazwa pliku wyjsciowego nie zostanie podana, jest brana taka sama jak pliku
+#	wejsciowego (tylko rozszerzenie sie zmieni na .asm). Jesli za nazwe
+#	pliku wejsciowego podano "-", czytane jest standardowe wejscie.
+#	Jesli nazwa pliku wyjsciowego to "-" (lub nie ma jej, gdy wejscie to stdin),
+#	wynik bedzie na standardowym wyjsciu.
+#
+# If there's no output filename, then it is assumed to be the same as the
+#	input filename (only the extension will be changed to .asm). If the
+#	input filename is "-", standard input will be read. If the
+#	output filename is "-" (or missing, when input is stdin),
+#	the result will be written to the standard output.
+#
+#    Niniejszy program jest wolnym oprogramowaniem; mozesz go
+#    rozprowadzac dalej i/lub modyfikowac na warunkach Powszechnej
+#    Licencji Publicznej GNU, wydanej przez Fundacje Wolnego
+#    Oprogramowania - wedlug wersji 3-ciej tej Licencji lub ktorejs
+#    z pozniejszych wersji.
+#
+#    Niniejszy program rozpowszechniany jest z nadzieja, iz bedzie on
+#    uzyteczny - jednak BEZ JAKIEJKOLWIEK GWARANCJI, nawet domyslnej
+#    gwarancji PRZYDATNOSCI HANDLOWEJ albo PRZYDATNOSCI DO OKRESLONYCH
+#    ZASTOSOWAN. W celu uzyskania blizszych informacji - Powszechna
+#    Licencja Publiczna GNU.
+#
+#    Z pewnoscia wraz z niniejszym programem otrzymales tez egzemplarz
+#    Powszechnej Licencji Publicznej GNU (GNU General Public License);
+#    jesli nie - napisz do Free Software Foudation:
+#		Free Software Foundation
+#		51 Franklin Street, Fifth Floor
+#		Boston, MA 02110-1301
+#		USA
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software Foudation:
+#		Free Software Foundation
+#		51 Franklin Street, Fifth Floor
+#		Boston, MA 02110-1301
+#		USA
+
+use strict;
+use warnings;
+use Getopt::Long;
+
+my ($wyj, @instr);
+
+# instrukcje do zmiany (instructions to be changed)
+@instr = (	"mov" , "and" , "or"  , "not", "xor", "neg", "cmp", "add" ,
+		"sub" , "push", "test", "lea", "pop", "inc", "dec", "idiv",
+		"imul", "sbb" , "sal" , "shl", "sar", "shr", "adc", "sbb"
+	);
+
+my @instrukcje = ('bt', 'if', 'in',
+'ja', 'jb', 'jc', 'je', 'jg',
+'jl', 'jo', 'jp', 'js', 'jz',
+'or', 'aaa',
+'aad', 'aam', 'aas', 'adc', 'add',
+'and', 'bsf', 'bsr', 'btc', 'btr',
+'bts', 'cbw', 'cdq', 'clc', 'cld',
+'cli', 'cmc', 'cmp', 'cqo', 'cwd',
+'daa', 'das', 'dec', 'div', 'end',
+'fld', 'fst', 'hlt', 'inc', 'ins',
+'int', 'jae', 'jbe', 'jge', 'jle',
+'jmp', 'jna', 'jnb', 'jnc', 'jne',
+'jng', 'jnl', 'jno', 'jnp', 'jns',
+'jnz', 'jpe', 'jpo', 'lar', 'lds',
+'lea', 'les', 'lfs', 'lgs', 'lsl',
+'lss', 'ltr', 'mov', 'mul', 'neg',
+'nop', 'not', 'org', 'out', 'pop',
+'por', 'rcl', 'rcr', 'rep', 'ret',
+'rol', 'ror', 'rsm', 'sal', 'sar',
+'sbb', 'shl', 'shr', 'stc', 'std',
+'sti', 'str', 'sub', 'ud2', 'xor',
+'arpl', 'call',
+'cdqe', 'clgi', 'clts', 'cmps', 'cwde',
+'data', 'dppd', 'dpps', 'else', 'emms',
+'fabs', 'fadd', 'fbld', 'fchs', 'fcom',
+'fcos', 'fdiv', 'feni', 'fild', 'fist',
+'fld1', 'fldz', 'fmul', 'fnop', 'fsin',
+'fstp', 'fsub', 'ftst', 'fxam', 'fxch',
+'heap', 'idiv', 'imul', 'insb', 'insd',
+'insw', 'int1', 'int3', 'into', 'invd',
+'iret', 'jcxz', 'jnae', 'jnbe', 'jnge',
+'jnle', 'lahf', 'lgdt', 'lidt', 'lldt',
+'lmsw', 'load', 'lock', 'lods', 'loop',
+'movd', 'movq', 'movs', 'orpd', 'orps',
+'outs', 'pand', 'popa', 'popd', 'popf',
+'popq', 'popw', 'push', 'pxor', 'repe',
+'repz', 'retd', 'retf', 'retn', 'retq',
+'retw', 'sahf', 'salc', 'scas', 'seta',
+'setb', 'setc', 'sete', 'setg', 'setl',
+'seto', 'setp', 'sets', 'setz', 'sgdt',
+'shld', 'shrd', 'sidt', 'sldt', 'smsw',
+'stgi', 'stos', 'test', 'verr', 'verw',
+'wait', 'xadd', 'xchg', 'xlat', 'addpd', 'addps', 'addsd',
+'addss', 'align', 'andpd', 'andps', 'bound',
+'break', 'bswap', 'cmova', 'cmovb', 'cmovc',
+'cmove', 'cmovg', 'cmovl', 'cmovo', 'cmovp',
+'cmovs', 'cmovz', 'cmppd', 'cmpps', 'cmpsb',
+'cmpsd', 'cmpsq', 'cmpss', 'cmpsw', 'cpuid',
+'divpd', 'divps', 'divsd', 'divss', 'enter',
+'entry', 'extrn', 'f2xm1', 'faddp', 'fbstp',
+'fclex', 'fcomi', 'fcomp', 'fdisi', 'fdivp',
+'fdivr', 'femms', 'ffree', 'fiadd', 'ficom',
+'fidiv', 'fimul', 'finit', 'fistp', 'fisub',
+'fldcw', 'fldpi', 'fmulp', 'fneni', 'fprem',
+'fptan', 'fsave', 'fsqrt', 'fstcw', 'fstsw',
+'fsubp', 'fsubr', 'fucom', 'fwait', 'fyl2x',
+'icebp', 'iretd', 'iretq', 'iretw', 'jecxz',
+'jrcxz', 'label', 'lddqu', 'leave', 'lodsb',
+'lodsd', 'lodsq', 'lodsw', 'loopd', 'loope',
+'loopq', 'loopw', 'loopz', 'maxpd', 'maxps',
+'maxsd', 'maxss', 'minpd', 'minps', 'minsd',
+'minss', 'movsb', 'movsd', 'movsq', 'movss',
+'movsw', 'movsx', 'movzx', 'mulpd', 'mulps',
+'mulsd', 'mulss', 'mwait', 'outsb', 'outsd',
+'outsw', 'pabsb', 'pabsd', 'pabsw', 'paddb',
+'paddd', 'paddq', 'paddw', 'pandn', 'pause',
+'pavgb', 'pavgw', 'pf2id', 'pf2iw', 'pfacc',
+'pfadd', 'pfmax', 'pfmin', 'pfmul', 'pfrcp',
+'pfsub', 'pi2fd', 'pi2fw', 'popad', 'popaw',
+'popfd', 'popfq', 'popfw', 'pslld', 'psllq',
+'psllw', 'psrad', 'psraw', 'psrld', 'psrlq',
+'psrlw', 'psubb', 'psubd', 'psubq', 'psubw',
+'ptest', 'pusha', 'pushd', 'pushf', 'pushq',
+'pushw', 'rcpps', 'rcpss', 'rdmsr', 'rdpmc',
+'rdtsc', 'repne', 'repnz', 'retfd', 'retfq',
+'retfw', 'retnd', 'retnq', 'retnw', 'scasb',
+'scasd', 'scasq', 'scasw', 'setae', 'setbe',
+'setge', 'setle', 'setna', 'setnb', 'setnc',
+'setne', 'setng', 'setnl', 'setno', 'setnp',
+'setns', 'setnz', 'setpe', 'setpo', 'stack',
+'store', 'stosb', 'stosd', 'stosq', 'stosw',
+'subpd', 'subps', 'subsd', 'subss', 'times',
+'vmrun', 'vmxon', 'wrmsr', 'xlatb',
+'xorpd', 'xorps', 'andnpd', 'andnps', 'cmovae', 'cmovbe', 'cmovge',
+'cmovle', 'cmovna', 'cmovnb', 'cmovnc', 'cmovne',
+'cmovng', 'cmovnl', 'cmovno', 'cmovnp', 'cmovns',
+'cmovnz', 'cmovpe', 'cmovpo', 'comisd', 'comiss',
+'fcmovb', 'fcmove', 'fcmovu', 'fcomip', 'fcompp',
+'fdivrp', 'ffreep', 'ficomp', 'fidivr', 'fisttp',
+'fisubr', 'fldenv', 'fldl2e', 'fldl2t', 'fldlg2',
+'fldln2', 'fnclex', 'fndisi', 'fninit', 'fnsave',
+'fnstcw', 'fnstsw', 'format', 'fpatan', 'fprem1',
+'frstor', 'frstpm', 'fscale', 'fsetpm', 'fstenv',
+'fsubrp', 'fucomi', 'fucomp', 'fxsave',
+'haddpd', 'haddps', 'hsubpd', 'hsubps', 'invlpg',
+'lfence', 'looped', 'loopeq', 'loopew', 'loopne',
+'loopnz', 'loopzd', 'loopzq', 'loopzw', 'mfence',
+'movapd', 'movaps', 'movdqa', 'movdqu', 'movhpd',
+'movhps', 'movlpd', 'movlps', 'movnti', 'movntq',
+'movsxd', 'movupd', 'movups', 'paddsb', 'paddsw',
+'pextrw', 'pfnacc', 'pfsubr', 'phaddd', 'phaddw',
+'phsubd', 'phsubw', 'pinsrw', 'pmaxsb', 'pmaxsd',
+'pmaxsw', 'pmaxub', 'pmaxud', 'pmaxuw', 'pminsb',
+'pminsd', 'pminsw', 'pminub', 'pminud', 'pminuw',
+'pmuldq', 'pmulhw', 'pmulld', 'pmullw', 'psadbw',
+'pshufb', 'pshufd', 'pshufw', 'psignb', 'psignd',
+'psignw', 'pslldq', 'psrldq', 'psubsb', 'psubsw',
+'pswapd', 'pushad', 'pushaw', 'pushfd',
+'pushfq', 'pushfw', 'rdmsrq', 'rdtscp', 'repeat',
+'setalc', 'setnae', 'setnbe', 'setnge', 'setnle',
+'sfence', 'shufpd', 'shufps', 'skinit', 'sqrtpd',
+'sqrtps', 'sqrtsd', 'sqrtss', 'swapgs', 'sysret',
+'vmcall', 'vmload', 'vmread', 'vmsave', 'vmxoff',
+'wbinvd', 'wrmsrq', 'blendpd', 'blendps', 'clflush', 'cmovnae', 'cmovnbe',
+'cmovnge', 'cmovnle', 'cmpeqpd', 'cmpeqps', 'cmpeqsd',
+'cmpeqss', 'cmplepd', 'cmpleps', 'cmplesd', 'cmpless',
+'cmpltpd', 'cmpltps', 'cmpltsd', 'cmpltss', 'cmpxchg',
+'display', 'fcmovbe', 'fcmovnb', 'fcmovne', 'fcmovnu',
+'fdecstp', 'fincstp', 'fnstenv', 'frndint', 'fsincos',
+'fucomip', 'fucompp', 'fxrstor', 'fxtract', 'fyl2xp1',
+'invlpga', 'ldmxcsr', 'loopned', 'loopneq', 'loopnew',
+'loopnzd', 'loopnzq', 'loopnzw', 'monitor', 'movddup',
+'movdq2q', 'movhlps', 'movlhps', 'movntdq', 'movntpd',
+'movntps', 'movq2dq', 'mpsadbw', 'paddusb', 'paddusw',
+'palignr', 'pavgusb', 'pblendw', 'pcmpeqb', 'pcmpeqd',
+'pcmpeqq', 'pcmpeqw', 'pcmpgtb', 'pcmpgtd', 'pcmpgtq',
+'pcmpgtw', 'pfcmpeq', 'pfcmpge', 'pfcmpgt', 'pfpnacc',
+'pfrsqrt', 'phaddsw', 'phsubsw', 'pmaddwd', 'pmulhrw',
+'pmulhuw', 'pmuludq', 'pshufhw', 'pshuflw', 'psubusb',
+'psubusw', 'roundpd', 'roundps', 'roundsd', 'roundss',
+'rsqrtps', 'rsqrtss', 'stmxcsr',
+'syscall', 'sysexit', 'sysretq', 'ucomisd', 'ucomiss',
+'vmclear', 'vmmcall', 'vmptrld', 'vmptrst',
+'vmwrite', 'addsubpd',
+'addsubps', 'blendvpd', 'blendvps', 'cmpneqpd', 'cmpneqps',
+'cmpneqsd', 'cmpneqss', 'cmpnlepd', 'cmpnleps', 'cmpnlesd',
+'cmpnless', 'cmpnltpd', 'cmpnltps', 'cmpnltsd', 'cmpnltss',
+'cmpordpd', 'cmpordps', 'cmpordsd', 'cmpordss', 'cvtdq2pd',
+'cvtdq2ps', 'cvtpd2dq', 'cvtpd2pi', 'cvtpd2ps', 'cvtpi2pd',
+'cvtpi2ps', 'cvtps2dq', 'cvtps2pd', 'cvtps2pi', 'cvtsd2si',
+'cvtsd2ss', 'cvtsi2sd', 'cvtsi2ss', 'cvtss2sd', 'cvtss2si',
+'fcmovnbe', 'maskmovq', 'movmskpd', 'movmskps', 'movshdup',
+'movsldup', 'packssdw', 'packsswb', 'packusdw', 'packuswb',
+'pblendvb', 'pfrcpit1', 'pfrcpit2', 'pfrsqit1', 'pmovmskb',
+'pmulhrsw', 'prefetch', 'sysenter', 'sysexitq', 'unpckhpd',
+'unpckhps', 'unpcklpd', 'unpcklps', 'vmlaunch', 'vmresume',
+'cmpxchg8b', 'cvttpd2dq',
+'cvttpd2pi', 'cvttps2dq', 'cvttps2pi', 'cvttsd2si', 'cvttss2si',
+'pcmpestri', 'pcmpestrm', 'pcmpistri', 'pcmpistrm', 'pmaddubsw',
+'prefetchw', 'punpckhbw', 'punpckhdq', 'punpckhwd', 'punpcklbw',
+'punpckldq', 'punpcklwd', 'cmpunordpd', 'cmpunordps', 'cmpunordsd', 'cmpunordss', 'cmpxchg16b',
+'loadall286', 'loadall386', 'maskmovdqu', 'phminposuw', 'prefetcht0',
+'prefetcht1', 'prefetcht2', 'punpckhqdq', 'punpcklqdq', 'prefetchnta',
+);
+
+sub is_instr {
+
+	my $elem = shift;
+	foreach(@instrukcje) {
+		$elem =~ /(\b$_[lbwd]{0,2}\b)/i;
+		return 1 if $elem eq $1;
+	}
+	return 0;
+}
+
+my ($help, $lic, $help_msg, $lic_msg);
+
+$help_msg = "$0: Konwerter z GNU as do NASMa / GNU as-to-NASM converter.\nAutor/Author: Bogdan Drozdowski, ".
+	"http://rudy.mif.pg.gda.pl/~bogdro/inne/\n".
+	"Skladnia/Syntax: $0 [--help] [--license] xxx.s [yyy.asm]\n\n
+ Jesli nazwa pliku wyjsciowego nie zostanie podana, jest brana taka sama jak
+pliku wejsciowego (tylko rozszerzenie sie zmieni na .asm). Jesli za nazwe
+pliku wejsciowego podano \"-\", czytane jest standardowe wejscie.
+ Jesli nazwa pliku wyjsciowego to \"-\" (lub nie ma jej, gdy wejscie to stdin),
+wynik bedzie na standardowym wyjsciu.
+
+ If there's no output filename, then it is assumed to be the same as the
+input filename (only the extension will be changed to .asm). If the
+input filename is \"-\", standard input will be read.
+ If the output filename is \"-\" (or missing, when input is stdin),
+the result will be written to the standard output.\n";
+
+$lic_msg = "$0: Konwerter z GNU as do NASMa / GNU as-to-NASM converter.\nAutor/Author: Bogdan Drozdowski, ".
+	"http://rudy.mif.pg.gda.pl/~bogdro/inne/\n\n".
+	"    Niniejszy program jest wolnym oprogramowaniem; mozesz go
+    rozprowadzac dalej i/lub modyfikowac na warunkach Powszechnej
+    Licencji Publicznej GNU, wydanej przez Fundacje Wolnego
+    Oprogramowania - wedlug wersji 2-giej tej Licencji lub ktorejs
+    z pozniejszych wersji.
+
+    Niniejszy program rozpowszechniany jest z nadzieja, iz bedzie on
+    uzyteczny - jednak BEZ JAKIEJKOLWIEK GWARANCJI, nawet domyslnej
+    gwarancji PRZYDATNOSCI HANDLOWEJ albo PRZYDATNOSCI DO OKRESLONYCH
+    ZASTOSOWAN. W celu uzyskania blizszych informacji - Powszechna
+    Licencja Publiczna GNU.
+
+    Z pewnoscia wraz z niniejszym programem otrzymales tez egzemplarz
+    Powszechnej Licencji Publicznej GNU (GNU General Public License);
+    jesli nie - napisz do Free Software Foudation:
+		Free Software Foundation
+		51 Franklin Street, Fifth Floor
+		Boston, MA 02110-1301
+		USA
+
+ This program is free software; you can redistribute it and/or
+ modify it under the terms of the GNU General Public License
+ as published by the Free Software Foundation; either version 2
+ of the License, or (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program; if not, write to the Free Software Foudation:
+		Free Software Foundation
+		51 Franklin Street, Fifth Floor
+		Boston, MA 02110-1301
+		USA\n";
+
+if ( @ARGV == 0 ) {
+	print $help_msg;
+	exit 1;
+}
+
+Getopt::Long::Configure("ignore_case", "ignore_case_always");
+
+if ( ! GetOptions(
+	'h|help|?'		=>	\$help,
+	'license|licence|L'	=>	\$lic
+	)
+   ) {
+
+	print $help_msg;
+	exit 1;
+}
+
+if ( $lic ) {
+	print $lic_msg;
+	exit 1;
+}
+
+if ( @ARGV == 0 || $help ) {
+	print $help_msg;
+	exit 1;
+}
+
+if ( @ARGV > 1 && $ARGV[0] ne "-" && $ARGV[0] eq $ARGV[1] ) {
+
+	print "$0: Plik wejsciowy i wyjsciowy NIE moga byc takie same.\n";
+	print "$0: Input file and output file must NOT be the same.\n";
+	exit 4;
+}
+
+
+##########################################################
+# Otwieranie plikow (opening the files)
+
+my ($we, $wy);
+
+if ( !open ( $we, $ARGV[0] ) ) {
+#	$! jest trescia bledu. ($! is the error message)
+	print "$0: $ARGV[0]: $!\n";
+	exit 2;
+}
+
+if ( @ARGV > 1 )  {
+	$wyj = $ARGV[1];
+
+} else {
+	# bierzemy tylko nazwe pliku (take only the filename)
+	($wyj = $ARGV[0]) =~ s/[\w\-\/\s]+\/([\w\-]+)/$1/;
+# 	Zmieniamy rozszerzenie z .s na .asm (change the extension from .s to .asm)
+	$wyj =~ s/\.s$/\.asm/;
+#	Zmieniamy spacje na podkreslenia (change spaces to underlines)
+	$wyj =~ s/\s+/_/g;
+
+	if ( $wyj eq $ARGV[0] && $wyj ne "-" ) { $wyj .= ".asm"; }
+}
+
+if ( !open ( $wy, "> $wyj" ) ) {
+	print "$0: $wyj: $!\n";
+	close $we;
+	exit 3;
+}
+
+# by chiba
+print $wy "org 0x8200\n";
+print $wy "bits 32    ; use 32bit operations\n";
+
+##########################################################
+# Przetwarzanie (processing):
+
+CZYTAJ: while ( <$we> ) {
+
+	#	puste linie przepisujemy (empty lines go without change)
+	if (/^\s*$/) {
+		print $wy "\n";
+		next;
+	}
+
+	# sprawdzamy, czy komentarz jest jedyny na linii (check if a comment is the only thing on this line)
+	if ( /^\s*;.*$/ ) { next; }
+
+	# zmiana komentarzy (change the comments)
+	&komen;
+
+	# przetwarzanie dyrektyw kompilacji warunkowej (processing of conditional compiling directives)
+	&kom_war(0);
+
+
+
+
+
+	# ==================== Etykiety (labels)
+	# zmiana ".Lnnn" na "_Lnnn", zeby etykiety byly widzialne globalnie
+	# (changing ".Lnnn" to "_Lnnn", so the labels are globally visible)
+	s/\.L([a-zA-Z])(\d+)/_L$1$2/g;
+	s/\.L(\d+)/_L$1/g;
+
+	# jesli sama w wierszu (if the only thing on a line)
+	if ( /^\s*([\w\.]+)\s*:\s*$/ ) 	{ s/\s*(\w+)\s*:\s*$/$1:\n/; print $wy $_; next; }
+
+	# jesli za nia cos jest (if there's something following it)
+	s/^\s*([\w\.]+)\s*:\s*(.*)$/$1:\n\t$2/;
+
+
+	# ==================== Dyrektywy (directives)
+	if ( /^\s*\.globa?l/i )	 	{ s/^\s*\.globa?l\s*(.*)/global\t$1/i; print $wy $_; next; }
+
+	if ( /^\s*\.include/i ) 	{ s/^\s*\.include\s*(.*)/\%include $1/i; print $wy $_; next; }
+
+	# "xxx .equ yyy"
+	if ( /^\s*\w+\.(set|equ)/i ) 	{ s/^\s*(\w+)\.(set|equ)\s*(\w+)\s*/$1\tequ\t$3/i; print $wy $_; next; }
+	# ".equ xxx, yyy" - to uwzglednia 'equiv' ( - this includes 'equiv'):
+	if ( /^\s*\.(set|equ)/i ) 	{ s/^\s*\.(set|equ)\s*(\w+)\s*,\s*(\w+)/$2\tequ\t$3/i; print $wy $_; next; }
+
+	if ( /^\s*\.b?align[wl]?/i ) 	{ s/^\s*\.b?align[wl]?\s+(\d+)\s*(,.*)?/align $1\n/i; print $wy $_; next; }
+
+	if ( /^\s*\.l?comm\s*(.*),(.*),(.*)/i ) { s/^\s*\.l?comm\s*(.*),(.*),(.*)/section .data\nalign $3\n$1: times $2 db 0/i; print $wy $_; next; }
+	if ( /^\s*\.l?comm\s*(.*),(.*)/i ) 	{ s/^\s*\.l?comm\s*(.*),(.*)/section .data\n$1: times $2 db 0/i; print $wy $_; next; }
+
+	if ( /^\s*\.desc/i ) 		{ print $wy "\n"; next; }
+
+		# pomijamy blok .def (skip over a .def block)
+	if ( /^\s*\.def/i )		{
+
+		while ( <$we> ) {
+
+			if ( /\.endef/i ) { next CZYTAJ; }
+		}
+	}
+
+	if ( /^\s*\.break/i ) 		{ print $wy "\n"; next; }
+
+	if ( /^\s*\.(app-)?file/i ) 	{ print $wy "\n"; next; }
+
+	if ( /^\s*\.extern/i ) 		{ s/^\s*\.extern\s*(.*)/extern\t$1/i; print $wy $_; next; }
+
+	if ( /^\s*\.fill\s*(.*),(.*),(.*)/i ) 	{ s/^\s*\.fill\s*(.*),(.*),(.*)/times $1*$2 db $3/i; print $wy $_; next; }
+	if ( /^\s*\.fill\s*(.*),(.*)/i ) 	{ s/^\s*\.fill\s*(.*),(.*)/times $1*$2 db 0/i; print $wy $_; next; }
+	if ( /^\s*\.fill\s*(.*)/i ) 		{ s/^\s*\.fill\s*(.*)/times $1 db 0/i; print $wy $_; next; }
+
+	if ( /^\s*\.ident/i ) 		{ print $wy "\n"; next; }
+
+	# $repeat mowi, czy jestesmy w bloku 'repeat' (= 1), czy w 'irp/s' (= 0)
+	# ($repeatsays, whether we're in a 'repeat' (= 1) or a 'irp/s' (= 0) block)
+	my $repeat = 0;
+
+	# moze powinien byc generowany blad? (perhaps an error should be generated)
+	if ( /^\s*\.irpc/i ) 		{ s/^\s*\.irp\s*(.*)/;irps $1/i;  $repeat = 0; print $wy $_; next; }
+	if ( /^\s*\.irp/i  ) 		{ s/^\s*\.irp\s*(.*)/;irp $1/i;   $repeat = 0; print $wy $_; next; }
+	if ( /^\s*\.rept/i ) 		{ s/^\s*\.rept\s*(.*)/\%rep $1/i; $repeat = 1; print $wy $_; next; }
+
+	if ( /^\s*\.endr/i )		{
+
+		# irp/irpc { ... }
+		if ( ! $repeat ) {
+
+			s/^\s*\.endr.*$/; IRP,IRPS\n/i;
+
+		# repeat ... end repeat
+		} else {
+
+			s/^\s*\.endr.*$/\%endrep\n/i;
+		}
+		print $wy $_;
+		next;
+	}
+
+	if ( /^\s*\.lflags/i ) 		{ print $wy "\n"; next; }
+
+	if ( /^\s*\.(line|ln)/i )	{ print $wy "\n"; next; }
+
+	if ( /^\s*\.linkonce/i )	{ print $wy "\n"; next; }
+
+	if ( /^\s*\.mri/i )		{ print $wy "\n"; next; }
+
+	if ( /^\s*\.(no)?list/i )	{ print $wy "\n"; next; }
+
+	if ( /^\s*\.macro/i )		{
+
+		my @def_arg;
+
+		# zachowujemy domyslne wartosci argumentow (save arguments' default values)
+		while ( /=/ ) {
+
+			s/(\w+)\s*=\s*(\w+)/$1 /g;
+			push(@def_arg, $2);
+		}
+
+		# argumenty makra moga byc oddzielone tylko spacjami
+		# (macro arguments may be separated only by spaces)
+		s/^\s*\.macro\s+(\w+)\s+([\w,\s]+)/.macro $1 $2/i;
+
+		my $args = $2;
+		# zmiana spacji na przecinki (change spaces to commas)
+		$args =~ s/(\w+)\s+(\w+)/$1, $2/g;
+
+		# rozdzielamy argumenty do tablicy (split arguments into an array)
+		my @arg_tab = split(/,/, $args);
+
+		# brak argumentow? (no arguments?)
+		if ( $#arg_tab == -1 )	{
+
+			s/^\s*\.macro\s+(\w+).*/\%macro\t$1 0\n/i;
+
+		} else {
+
+			# usuwamy znak nowej linii z ostatniego (remove a newline from the last one)
+			chomp $arg_tab[$#arg_tab];
+
+			my $num = $#arg_tab + 1;
+			my $def_args = join(", " , @def_arg);
+			s/^\s*\.macro\s+(\w+).*/\%macro\t$1 $num $def_args\n/i;
+
+			my $numer = 1;
+			foreach my $i (@arg_tab) {
+
+				$_ .= "\t$i\tequ\t\%$numer\n";
+				$numer++;
+			}
+		}
+
+		print $wy $_;
+		next;
+	}
+
+	if ( /^\s*\.endm/i )		{ s/^\s*\.endm.*$/\%endmacro\n/i; print $wy $_; next; }
+
+	if ( /^\s*\.org/i )		{ s/^\s*\.org(.*)(,.*)?$/org\t$1/i; print $wy $_; next; }
+
+	if ( /^\s*\.psize/i )		{ print $wy "\n"; next; }
+
+	if ( /^\s*\.sbttl/i )		{ print $wy "\n"; next; }
+
+	if ( /^\s*\.section/i )		{ s/^\s*\.section\s+([\w\-\.]+).*$/section "$1"/i; print $wy $_; next; }
+
+	if ( /^\s*\.(skip|space)\s*(.*),(.*)$/i ) 	{ s/^\s*\.(skip|space)\s*(.*),(.*)$/times $1 db $2/i; print $wy $_; next; }
+	if ( /^\s*\.(skip|space)\s*(.*)$/i ) 		{ s/^\s*\.(skip|space)\s*(.*)$/times $2 db 0/i; print $wy $_; next; }
+
+	if ( /^\s*\.stab[dns]/i )	{ print $wy "\n"; next; }
+
+	if ( /^\s*\.symver/i )		{ print $wy "\n"; next; }
+
+	if ( /^\s*\.title/i )		{ print $wy "\n"; next; }
+
+	if ( /^\s*\.code\d{2}/i ) 	{ s/^\s*\.code(\d{2})/bits $1/i; print $wy $_; next; }
+
+	if ( /^\s*\.type/i )		{ print $wy "\n"; next; }
+
+	if ( /^\s*\.size/i )		{ print $wy "\n"; next; }
+
+	if ( /^\s*\.p2align/i )		{ s/^\s*\.p2align\s*(\d+)\s*,.*/align 2 << $1/i; print $wy $_; next; }
+
+
+
+
+
+	# ==================== Sekcje (sections)
+	if ( /^\s*\.data/i ) 		{ s/^\s*\.data\s*.*$/section .data\n/i; print $wy $_; next; }
+
+	if ( /^\s*\.text/i ) 		{ s/^\s*\.text\s*.*$/section .text\n/i; print $wy $_; next; }
+
+	if ( /^\s*\.bss/i ) 		{ s/^\s*\.bss\s*.*$/section .bss\n/i; print $wy $_; next; }
+
+
+	# ==================== Dane (data)
+	if ( /\s*\.byte/i ) 		{ s/\s*\.byte\s*(.*)/ db $1/i; print $wy $_; next; }
+
+	if ( /\s*\.(h?word|short)/i ) 	{ s/\s*\.(h?word|short)\s*(.*)/ dw $2/i; print $wy $_; next; }
+
+	if ( /\s*\.double/i ) 		{ s/\s*\.double\s*(.*)/ dq $1/i; print $wy $_; next; }
+
+	if ( /\s*\.(float|single)/i ) 	{ s/\s*\.(float|single)\s*(.*)/ dd $2/i; print $wy $_; next; }
+
+	if ( /\s*\.(int|long)/i )	{ s/\s*\.(int|long)\s*(.*)/ dd $2/i; print $wy $_; next; }
+
+	# NASM nie ma 'ddq', wiec wyswietli sie blad. Nie wolno tego przepuscic z mniejszym rozmiarem
+	# (no 'ddq' in NASM, so an error will occur. We mustn't let this through with a smaller size)
+	if ( /\s*\.octa/i ) 		{ s/\s*\.octa\s*(.*)/ ddq $1/i; print $wy $_; next; }
+
+	if ( /\s*\.quad/i ) 		{ s/\s*\.quad\s*(.*)/ dq $1/i; print $wy $_; next; }
+
+	if ( /\s*\.zero/i ) 		{ s/\s*\.zero\s*(\d+)/ resb $1/i; print $wy $_; next; }
+
+	if ( /\s*\.(s|u)leb128/i ) 	{ print $wy "\n"; next; }
+
+	if ( /\s*\.tfloat/i ) 		{ s/\s*\.tfloat\s*(.*)/ dt $1/i; print $wy $_; next; }
+
+	if ( /\s*\.(string|ascii?z)/i )	{
+
+		s/\n//g;
+		s/\\n/", 10, "/g;
+		s/\\r/", 13, "/g;
+		s/\\t/", 9, "/g;
+		s/\\a/", 7, "/g;
+		s/\s*\.(string|ascii?z)\s*//i;
+		# konczymy zerem (end with a zero)
+		print $wy " db\t$_, 0\n";
+		next;
+	}
+
+	if ( /\s*\.ascii/i )		{
+
+		s/\n//g;
+		s/\\n/", 10, "/g;
+		s/\\r/", 13, "/g;
+		s/\\t/", 9, "/g;
+		s/\\a/", 7, "/g;
+		s/\s*\.ascii\s*//i;
+		# nie konczymy zerem (don't end with a zero)
+		print $wy " db\t$_\n";
+		next;
+	}
+
+
+
+	# ==================== Instrukcje (instructions)
+
+	# zmiana "xxx" na "[xxx]", jesli nie ma '$' lub '%'
+	# (changing "xxx" to "[xxx]", if there's no '$' or '%')
+
+	# elementy argumentow pamieciowych nie moga byc brane jako argumenty instrukcji, wiec nie ma tu '()'
+	# (elements of memory operands mustn't be taken as instruction operands, so there are no '()'s here)
+	if ( /^\s*(\w+)\s+([\$\%\w\+\-]+)\s*,\s*([\$\%\w\+\-]+)\s*,\s*([\$\%\w\+\-]+)/ ) {
+
+		my ($a1, $a2, $a3, $a4);
+
+		$a1 = $1;
+		$a2 = $2;
+		$a3 = $3;
+		$a4 = $4;
+
+		# nie ruszamy "call/jmp xxx" (don't touch "call/jmp xxx")
+		if ( $a1 !~ /call/i && $a1 !~ /^\s*j[a-z]{1,3}/i ) {
+
+			# nie wolno zamieniac cyfr and %st(n) (we mustn't change digits and %st(n))
+			if ( $a2 !~ /\$/ && $a2 !~ /\%/ && $a2 !~ /_L\d+/ && $a2 =~ /[a-zA-Z_\.]/ ) {
+
+				$a2 = "[$a2]";
+			}
+			if ( $a3 !~ /\$/ && $a3 !~ /\%/ && $a3 !~ /_L\d+/ && $a3 =~ /[a-zA-Z_\.]/ ) {
+
+				$a3 = "[$a3]";
+			}
+			if ( $a4 !~ /\$/ && $a4 !~ /\%/ && $a4 !~ /_L\d+/ && $a4 =~ /[a-zA-Z_\.]/ ) {
+
+				$a4 = "[$a4]";
+			}
+
+			# UWAGA: zmiana kolejnosci argumentow bedzie pozniej
+			# (ATTENTION: operand order will be changed later)
+			$_ = "\t$a1\t$a2, $a3, $a4\n";
+		}
+	}
+
+	if ( /^\s*(\w+)\s+([\$\%\w\+\-]+)\s*,\s*([\$\%\w\+\-]+)\s*$/ ) {
+
+		my ($a1, $a2, $a3);
+
+		$a1 = $1;
+		$a2 = $2;
+		$a3 = $3;
+
+		# nie ruszamy "call/jmp xxx" (don't touch "call/jmp xxx")
+		if ( $a1 !~ /call/i && $a1 !~ /^\s*j[a-z]{1,3}/i ) {
+
+			# nie wolno zamieniac cyfr and %st(n) (we mustn't change digits and %st(n))
+			if ( $a2 !~ /\$/ && $a2 !~ /\%/ && $a2 !~ /_L\d+/ && $a2 =~ /[a-zA-Z_\.]/ ) {
+
+				$a2 = "[$a2]";
+			}
+			if ( $a3 !~ /\$/ && $a3 !~ /\%/ && $a3 !~ /_L\d+/ && $a3 =~ /[a-zA-Z_\.]/ ) {
+
+				$a3 = "[$a3]";
+			}
+
+			# UWAGA: zmiana kolejnosci argumentow bedzie pozniej
+			# (ATTENTION: operand order will be changed later)
+			$_ = "\t$a1\t$a2, $a3\n";
+		}
+	}
+
+	if ( /^\s*(\w+)\s+([\$\%\w\+\-]+)\s*\s*$/ ) {
+
+		my ($a1, $a2);
+
+		$a1 = $1;
+		$a2 = $2;
+
+		# nie ruszamy "call/jmp xxx" (don't touch "call/jmp xxx")
+		if ( $a1 !~ /call/i && $a1 !~ /^\s*j[a-z]{1,3}/i ) {
+
+			# nie wolno zamieniac cyfr and %st(n) (we mustn't change digits and %st(n))
+			if ( $a2 !~ /\$/ && $a2 !~ /\%/ && $a2 !~ /_L\d+/ && $a2 =~ /[a-zA-Z_\.]/ ) {
+
+				$a2 = "[$a2]";
+			}
+
+			# UWAGA: zmiana kolejnosci argumentow bedzie pozniej
+			# (ATTENTION: operand order will be changed later)
+			$_ = "\t$a1\t$a2\n";
+		}
+	}
+
+	my $addr_num;
+	if ( /[\s,]+\d+[\s,]*$/ ) { $addr_num = 1; } else { $addr_num = 0; }
+
+	# usuwanie znakow dolara (removing dollar chars)
+	s/\$//g;
+
+	# usuwanie znakow procenta (removing percent chars)
+	s/%//g;
+	# usuwanie znakow gwiazdki (removing asterisk chars)
+	s/\*//g;
+
+	# zmiana odnoszenia sie do pamieci (changing memory references):
+	# seg: disp(base, index, scale)
+	s/(\w+\s*:\s*)([\w\+\-\(\)\.]+)\s*\(\s*(\w+)\s*,\s*(\w+)\s*,\s*(\d)\s*\)/[$1$3+$5*$4+$2]/;
+	s/(\w+\s*:\s*)([\w\+\-\(\)\.]+)\s*\(\s*(\w+)\s*,\s*(\w+)\s*,?\s*\)/[$1$3+$4+$2]/;
+	s/(\w+\s*:\s*)\(\s*(\w+)\s*,\s*(\w+)\s*,\s*(\d)\s*\)/[$1$2+$3*$4]/;
+	s/(\w+\s*:\s*)\(\s*(\w+)\s*,\s*(\w+)\s*,?\s*\)/[$1$2+$3]/;
+	s/(\w+\s*:\s*)([\w\+\-\(\)\.]+)\s*\(\s*,\s*1\s*\)/[$1$2]/;
+	s/(\w+\s*:\s*)([\w\+\-\(\)\.]+)\s*\(\s*,\s*(\w+)\s*,\s*(\d)\s*\)/[$1$3*$4+$2]/;
+	s/(\w+\s*:\s*)([\w\+\-\(\)\.]+)\s*\(\s*(\w+)\s*\)/[$1$3+$2]/;
+	s/(\w+\s*:\s*)\s*\(\s*,\s*(\w+)\s*,\s*(\d)\s*\)/[$1$2*$3]/;
+	s/(\w+\s*:\s*)\(\s*(\w+)\s*\)/[$1$2]/;
+
+	# disp(base, index, scale)
+	s/([\w\+\-\(\)\.]+)\(\s*(\w+)\s*,\s*(\w+)\s*,\s*(\d)\s*\)/[$2+$3*$4+$1]/;
+	s/([\w\+\-\(\)\.]+)\(\s*(\w+)\s*,\s*(\w+)\s*,?\s*\)/[$2+$3+$1]/;
+	s/\s*\(\s*(\w+)\s*,\s*(\w+)\s*,\s*(\d)\s*\)/\t[$1+$2*$3]/;
+	s/\s*\(\s*(\w+)\s*,\s*(\w+)\s*,?\s*\)/\t[$1+$2]/;
+	s/([\w\+\-\(\)\.]+)\(\s*,\s*(\w+)\s*,\s*(\d)\s*\)/[$2*$3+$1]/;
+	s/\(\s*,\s*(\w+)\s*,\s*(\d)\s*\)/[$1*$2]/;
+
+	# disp(, index)
+	s/([\w\-\+\(\)\.]+)\(\s*,\s*1\s*\)/[$1]/;
+	s/([\w\-\+\(\)\.]+)\(\s*,\s*(\w+)\s*\)/[$2+$1]/;
+
+	# (base, index)
+	s/\(\s*,\s*1\s*\)/[$1]/;
+	s/\(\s*,\s*(\w+)\s*\)/[$1]/;
+
+	# disp(base)
+	s/([\w\-\+\(\)\.]+)\(\s*(\w+)\s*\)/[$2+$1]/ unless /st\(\d\)/i;
+	s/\(\s*(\w+)\s*\)/[$1]/;
+
+	# base
+	if ( $addr_num ) { s/(\d+)([\s,]*)$/[$1]$2/g; }
+
+	# zmiana "st[N]" na "stN" (changing "st[N]" to "stN")
+	s/(\s)st\[(\d)\]/$1 st$2/g;
+	# zmiana "st" na "st0" (changing "st" to "st0")
+	s/(\s)st(\s|,)/$1 st0$2/g;
+
+
+	# zmiana kolejnosci argumentow (changing operands' order):
+	if ( 		 /^\s*(\w+)\s+(\[?[:\.\w\*\+\-\(\)]+\]?)\s*,\s*(\[?[:\.\w\*\+\-\(\)]+\]?)\s*,\s*(\[?[:\.\w\*\+\-\(\)]+\]?)/ ) {
+		if ( is_instr($1) ) {
+			s/^\s*(\w+)\s+(\[?[:\.\w\*\+\-\(\)]+\]?)\s*,\s*(\[?[:\.\w\*\+\-\(\)]+\]?)\s*,\s*(\[?[:\.\w\*\+\-\(\)]+\]?)/\t$1\t$4, $3, $2/;
+		}
+	}
+	if ( 		 /^\s*(\w+)\s+(\[?[:\.\w\*\+\-\(\)]+\]?)\s*,\s*(\[?[:\.\w\*\+\-\(\)]+\]?)([^,]*(;.*)?)$/ ) {
+		if ( is_instr($1) ) {
+			s/^\s*(\w+)\s+(\[?[:\.\w\*\+\-\(\)]+\]?)\s*,\s*(\[?[:\.\w\*\+\-\(\)]+\]?)([^,]*(;.*)?)$/\t$1\t$3, $2$4/;
+		}
+	}
+	if ( 		 /^\s*(\w+)\s+(\[?[:\.\w\*\+\-\(\)]+\]?)([^,]*(;.*)?)$/ ) {
+		if ( is_instr($1) ) {
+			s/^\s*(\w+)\s+(\[?[:\.\w\*\+\-\(\)]+\]?)([^,]*(;.*)?)$/\t$1\t$2$3/;
+		}
+	}
+
+	foreach my $i (@instr) {
+
+		s/^\s*$i[b]\s*(.*)$/\t$i\tbyte $1/i;
+		s/^\s*$i[w]\s*(.*)$/\t$i\tword $1/i;
+		s/^\s*$i[l]\s*(.*)$/\t$i\tdword $1/i;
+	}
+
+	s/^\s*movsbw\s+(.*)\s*,\s*(.*)$/\tmovsx\t$1, byte $2\n/i;
+	s/^\s*movsbl\s+(.*)\s*,\s*(.*)$/\tmovsx\t$1, byte $2\n/i;
+	s/^\s*movswl\s+(.*)\s*,\s*(.*)$/\tmovsx\t$1, word $2\n/i;
+	s/^\s*movzbw\s+(.*)\s*,\s*(.*)$/\tmovzx\t$1, byte $2\n/i;
+	s/^\s*movzbl\s+(.*)\s*,\s*(.*)$/\tmovzx\t$1, byte $2\n/i;
+	s/^\s*movzwl\s+(.*)\s*,\s*(.*)$/\tmovzx\t$1, word $2\n/i;
+
+	s/^\s*l?(jmp|call)\s*(\[[\w\*\+\-\s]+\])/\t$1\tdword $2/i;
+	s/^\s*l?(jmp|call)\s*([\w\*\+\-]+)/\t$1\tdword $2/i;
+	s/^\s*l?(jmp|call)\s*(\w+)\s*,\s*(\w+)/\t$1\t$2:$3/i;
+	s/^\s*lret\s*(.*)$/\tret\t$1\n/i;
+
+	s/^\s*cbtw\s*/\tcbw\t/i;
+	s/^\s*cwtl\s*/\tcwde\t/i;
+	s/^\s*cwtd\s*/\tcwd\t/i;
+	s/^\s*cltd\s*/\tcdq\t/i;
+
+	s/^\s*f(\w+)s\s+(.*)$/\tf$1\tdword $2/i unless /fchs\s/i;
+	s/^\s*f(\w+)l\s+(.*)$/\tf$1\tqword $2/i unless /fmul\s/i;
+	s/^\s*f(\w+)q\s+(.*)$/\tf$1\tqword $2/i;
+	s/^\s*f(\w+)t\s+(.*)$/\tf$1\ttword $2/i unless /fst\s/i;
+
+	# REP**: usuwamy znak konca linii (REP**: removing the end of line char)
+	s/^\s*(rep[enz]{0,2})\s*/\t$1/i;
+
+	# zmiana znakow '#' z dyrektyw kompilacji warunkowej na '%'
+	# (changing the '#' chars form conditional compiling directives to '%')
+	s/\@/\%/g;
+
+	# zmiana '=' to 'equ' (change '=' to 'equ')
+	s/^\s*(\w+)\s*=\s*(\w+)\s*(;.*)?$/$1\tequ\t$2\n/g;
+
+	print $wy $_;
+}
+
+
+##########################################################
+# Zmiana komentarzy (changing the comments).
+# GAS ma takie same komentarze, jak C (GAS has the same comments as C)
+
+sub	komen {
+
+	#	Komentarze jednolinijkowe (one-line comments):
+	if ( /^(.+)\/\*(.*)\*\/(.+)$/ )	{ s/(.+)\/\*(.*)\*\/(.+)$/$1 $3 ; $2/g;	return $_; }
+	if ( /^\/\*(.*)\*\/(.+)$/ )	{ s/\/\*(.*)\*\/(.+)$/$2 ; $1/g;	return $_; }
+	if ( /^(.+)\/\*(.*)\*\/$/ )	{ s/(.+)\/\*(.*)\*\/$/$1 ; $2/g;	return $_; }
+	if ( /^[^#]+#.*$/ )		{ s/^([^#]+)#(.*)$/$1 ; $2/g;	return $_; }
+#	if ( /^[^#]+#.*$/ )		{ return $_; }
+
+	# Jesli komentarz jest jedyna rzecza w wierszu, to od razu go wypisujemy i idziemy dalej
+	# (if the comment is the only thing on this line, we print it to the file and go further)
+	if ( /^\/\*(.*)\*\/$/ )		{ s/\/\*(.*)\*\/$/; $1/g; print $wy $_;	return $_; }
+	if ( /^#.*$/ )			{ s/^#(.*)$/; $1/g; print $wy $_;	return $_; }
+
+	# Komentarze wielolinijkowe (multi-line comments)
+	if ( /^(.*)\/\*(.*)$/ ) {
+
+		# wyrzucamy /* z zachowaniem tego, co bylo przed tym
+		# (we remove the /*, saving whatever was in front of it)
+		s/^(.*)\/\*(.*)$/$1; $2/;
+		print $wy $_;
+
+		while ( <$we> ) {
+
+			# po prostu stawiamy srednik przed kazda linia
+			# (we simply add a semicolon in front of every line)
+			s/^(.*)$/; $1/;
+
+			# jak trafimy na */, to go kasujemy i przerywamy ta petle
+			# (when we find */, we remove it and stop this loop)
+			if ( /\*\// ) {
+
+				s/\*\///;
+				print $wy $_;
+				return $_;
+			}
+			print $wy $_;
+		}
+	}
+
+}
+
+##########################################################
+# Kompilacja warunkowa (conditional compiling)
+
+sub	kom_war {
+
+	# parametr = 0 => nie ma drukowania (when the parameter is 0, there will be no printing)
+	my $drukuj = shift;
+
+	# UWAGA: na poczatku dajemy '\@', zeby nie zostalo wziete do obrobki pozniej
+	# ATTENTION: we put a '\@' in front, so these won't be affected by further processing
+
+	#	Kompilacja warunkowa (conditional compiling)
+	if ( /^\s*\.ifdef/i ) {
+
+		s/^\s*\.ifdef(.*)$/\@ifdef $1/i;
+		if ( $drukuj ) { print $wy $_; }
+	}
+
+	if ( /^\s*\.ifn(ot)?def/i ) {
+
+		s/^\s*\.ifn(ot)?def(.*)$/\@ifndef/i;
+		if ( $drukuj ) { print $wy $_; }
+	}
+
+	if ( /^\s*\.endif/i ) {
+
+		s/^\s*\.endif.*$/\@endif/i;
+		if ( $drukuj ) { print $wy $_; }
+	}
+
+	if ( /^\s*\.elseif/i ) {
+
+		s/^\s*\.elseif(.*)$/\@elif $1/i;
+		if ( $drukuj ) { print $wy $_; }
+	}
+
+	if ( /^\s*\.else/i ) {
+
+		s/^\s*\.else(.*)$/\@else $1/i;
+		if ( $drukuj ) { print $wy $_; }
+	}
+
+	if ( /^\s*\.if/ ) {
+
+		s/^\s*\.if(.*)$/\@if $1/i;
+		# XXX: zostawiam tu "!defined" (I leave "!defined" here)
+		# s/!\s*defined\s+(\w+)/(~defined $1 | defined \@f)/g;
+		# if ( /~defined/ )	{ s/$/\n\@\@:\n/; };
+		if ( $drukuj ) { print $wy $_; }
+	}
+
+	if ( /\s*\.err/i ) {
+
+		s/\s*\.err(.*)$/\@error "$1"/i;
+		if ( $drukuj ) { print $wy $_; }
+	}
+
+}
+
+
+##########################################################
+# Koniec (the end):
+
+close $wy;
+close $we;
+
