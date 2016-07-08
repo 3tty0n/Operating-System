@@ -21,7 +21,7 @@ void boot2() {
   ptr[1] = 'B';
 
   fdc_running = 1;
-  fdc_write(0, 0, 1);
+  fdc_write(0, 1, 18);
   while (fdc_running)
     halt();
 
