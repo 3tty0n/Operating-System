@@ -58,6 +58,15 @@ int register_handlers() {
   out8(0xa1, 0xff);	/* PIC1_IMR: no interrupt */
 }
 
+void read_a_sector(int cylinder, int head, int sector) {
+  fdc_initialize();
+  fdc_running = 1;
+  fdc_read(cylinder, head, sector) {
+  while (fdc_running) halt();
+  fdc_read2();
+  fdc_running = 0;
+}
+
 int print(int num, int x, int y, int color) {
   static int bitmaps[][4] = {
     { 0x7e, 0x81, 0x81, 0x7e },	/* 0 */
