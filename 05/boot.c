@@ -72,7 +72,7 @@ int register_handlers() {
 void read_a_sector(int cylinder, int head, int sector) {
   fdc_initialize();
   fdc_running = 1;
-  fdc_read(cylinder, head, sector) {
+  fdc_read(cylinder, head, sector);
   while (fdc_running) halt();
   fdc_read2();
   fdc_running = 0;
