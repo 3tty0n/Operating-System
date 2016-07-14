@@ -16,13 +16,14 @@ void boot() {
   /* ここで pingpong.exe を読み込んで実行する */
 
   read_a_sector(1, 1, 6);
-
+	
+	char* src;
+	char* dest;
   src = (char*)0x80000;
   dest = (char*)0x10000;
   *dest = *src;
-
-  void (*pftr)();
-
+	
+  void (*fptr)();
   fptr = (void (*)())0x10000;
   (*fptr)();
 
@@ -72,7 +73,7 @@ int register_handlers() {
 void read_a_sector(int cylinder, int head, int sector) {
   fdc_initialize();
   fdc_running = 1;
-  fdc_read(cylinder, head, sector) {
+  fdc_read(cylinder, head, sector);
   while (fdc_running) halt();
   fdc_read2();
   fdc_running = 0;
