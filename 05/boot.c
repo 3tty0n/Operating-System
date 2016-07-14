@@ -15,6 +15,17 @@ void boot() {
 
   /* ここで pingpong.exe を読み込んで実行する */
 
+  read_a_sector(1, 1, 6);
+
+  src = (char*)0x80000;
+  dest = (char*)0x10000;
+  *dest = *src;
+
+  void (*pftr)();
+
+  fptr = (void (*)())0x10000;
+  (*fptr)();
+
   while (1)
     halt();
 }
