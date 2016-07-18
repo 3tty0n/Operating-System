@@ -11,21 +11,39 @@ int fdc_running = 0;
 /* 各種設定が終わると、boot2d.asm から boot() が呼ばれる
  */
 void boot() {
-  register_handlers();
+  char* src;
+	char* dest;
+	int i;
+	register_handlers();
 
   /* ここで pingpong.exe を読み込んで実行する */
+	
+	fdc_initialize();
 
-  read_a_sector(1, 1, 6);
+	fdc_read(1, 1, 18);
+	while (fdc_running) halt();
+	fdc_read2();
+
+	src = (char*)0x80000;
+	dest = (char*)0x10000;
+
+	for (i = 0; i < 512; i ++) {
+		*(dest + i) = *(src + i);
+	}
+
+	fdc_read(2, 0, 1);
+	while (fdc_running) halt();
+
+	fdc_read2();
+	for (i = 0; i < 512; i++) {
+		*(dest + 512 + i) = *(src + i);
+	}
 	
-	char* src;
-	char* dest;
-  src = (char*)0x80000;
-  dest = (char*)0x10000;
-  *dest = *src;
-	
-  void (*fptr)();
-  fptr = (void (*)())0x10000;
-  (*fptr)();
+
+	void (*fptr)();
+
+	fptr = (void (*)())0x10000;
+	(*fptr)();
 
   while (1)
     halt();
@@ -48,9 +66,10 @@ int null_timer_handler() {
 int syscall_handler(int* regs) {
   int a = regs[0];
   int b = regs[1];
-
+	print(8, 100, 100, 8);
   return 0;
 }
+
 
 /* 割り込み処理関数を登録する
  */
@@ -68,15 +87,6 @@ int register_handlers() {
   sti();
   out8(0x21, 0xb8);	/* PIC0_IMR: accept only IRQ0,1,6 and IRQ2 (PIC1) */
   out8(0xa1, 0xff);	/* PIC1_IMR: no interrupt */
-}
-
-void read_a_sector(int cylinder, int head, int sector) {
-  fdc_initialize();
-  fdc_running = 1;
-  fdc_read(cylinder, head, sector);
-  while (fdc_running) halt();
-  fdc_read2();
-  fdc_running = 0;
 }
 
 int print(int num, int x, int y, int color) {
@@ -104,7 +114,7 @@ int print(int num, int x, int y, int color) {
       if (bits & (0x80 >> i))
         *(vram + j) = color;
       else
-	*(vram + j) = 0;
+				*(vram + j) = 0;
     }
 
     vram += SCREEN_WIDTH;
