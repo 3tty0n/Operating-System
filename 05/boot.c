@@ -8,39 +8,70 @@
 
 int fdc_running = 0;
 
-/* Šeíİ’è‚ªI‚í‚é‚ÆAboot2d.asm ‚©‚ç boot() ‚ªŒÄ‚Î‚ê‚é
+/* å„ç¨®è¨­å®šãŒçµ‚ã‚ã‚‹ã¨ã€boot2d.asm ã‹ã‚‰ boot() ãŒå‘¼ã°ã‚Œã‚‹
  */
 void boot() {
-  register_handlers();
+  char* src;
+	char* dest;
+	int i;
+	register_handlers();
 
-  /* ‚±‚±‚Å pingpong.exe ‚ğ“Ç‚İ‚ñ‚ÅÀs‚·‚é */
+  /* ã“ã“ã§ pingpong.exe ã‚’èª­ã¿è¾¼ã‚“ã§å®Ÿè¡Œã™ã‚‹ */
+	
+	fdc_initialize();
+
+	fdc_read(1, 1, 18);
+	while (fdc_running) halt();
+	fdc_read2();
+
+	src = (char*)0x80000;
+	dest = (char*)0x10000;
+
+	for (i = 0; i < 512; i ++) {
+		*(dest + i) = *(src + i);
+	}
+
+	fdc_read(2, 0, 1);
+	while (fdc_running) halt();
+
+	fdc_read2();
+	for (i = 0; i < 512; i++) {
+		*(dest + 512 + i) = *(src + i);
+	}
+	
+
+	void (*fptr)();
+
+	fptr = (void (*)())0x10000;
+	(*fptr)();
 
   while (1)
     halt();
 }
 
 int fdc_handler() {
-  out8(0x20, 0x66);	/* ƒtƒƒbƒs[ƒfƒBƒXƒNŠ„‚è‚İ (IRQ6) ‚ğÄ“x—LŒø‚É‚·‚é */
+  out8(0x20, 0x66);	/* ãƒ•ãƒ­ãƒƒãƒ”ãƒ¼ãƒ‡ã‚£ã‚¹ã‚¯å‰²ã‚Šè¾¼ã¿ (IRQ6) ã‚’å†åº¦æœ‰åŠ¹ã«ã™ã‚‹ */
   fdc_running = 0;
 }
 
 int null_kbd_handler() {
-  out8(0x20, 0x61);	/* ƒL[ƒ{[ƒhŠ„‚è‚İ (IRQ1) ‚ğÄ“x—LŒø‚É‚·‚é */
-  in8(KBD_DATA);        /* ƒL[EƒR[ƒh‚Ì“Ç‚İ‚İ */
+  out8(0x20, 0x61);	/* ã‚­ãƒ¼ãƒœãƒ¼ãƒ‰å‰²ã‚Šè¾¼ã¿ (IRQ1) ã‚’å†åº¦æœ‰åŠ¹ã«ã™ã‚‹ */
+  in8(KBD_DATA);        /* ã‚­ãƒ¼ãƒ»ã‚³ãƒ¼ãƒ‰ã®èª­ã¿è¾¼ã¿ */
 }
 
 int null_timer_handler() {
-  out8(0x20, 0x60);	/* ƒ^ƒCƒ}[Š„‚è‚İ (IRQ0) ‚ğÄ“x—LŒø‚É‚·‚é */
+  out8(0x20, 0x60);	/* ã‚¿ã‚¤ãƒãƒ¼å‰²ã‚Šè¾¼ã¿ (IRQ0) ã‚’å†åº¦æœ‰åŠ¹ã«ã™ã‚‹ */
 }
 
 int syscall_handler(int* regs) {
   int a = regs[0];
   int b = regs[1];
-
+	print(8, 100, 100, 8);
   return 0;
 }
 
-/* Š„‚è‚İˆ—ŠÖ”‚ğ“o˜^‚·‚é
+
+/* å‰²ã‚Šè¾¼ã¿å‡¦ç†é–¢æ•°ã‚’ç™»éŒ²ã™ã‚‹
  */
 int register_handlers() {
   int* ptr = (int*)0x7e00;
@@ -83,7 +114,7 @@ int print(int num, int x, int y, int color) {
       if (bits & (0x80 >> i))
         *(vram + j) = color;
       else
-	*(vram + j) = 0;
+				*(vram + j) = 0;
     }
 
     vram += SCREEN_WIDTH;
@@ -92,7 +123,7 @@ int print(int num, int x, int y, int color) {
   return 0;
 }
 
-/* in –½—ß‚Å port ‚Ì’l (8bit) ‚ğ“Ç‚Ş
+/* in å‘½ä»¤ã§ port ã®å€¤ (8bit) ã‚’èª­ã‚€
  */
 int in8(int port) {
   int value;
@@ -101,7 +132,7 @@ int in8(int port) {
   return value;
 }
 
-/* out –½—ß‚Å port ‚É’l (8bit) ‚ğ‘‚«‚Ş
+/* out å‘½ä»¤ã§ port ã«å€¤ (8bit) ã‚’æ›¸ãè¾¼ã‚€
  */
 int out8(int port, int value) {
   asm volatile ("out %%al,%%dx"
@@ -109,30 +140,30 @@ int out8(int port, int value) {
   return 0;
 }
 
-/* sti –½—ß‚ğÀs
+/* sti å‘½ä»¤ã‚’å®Ÿè¡Œ
  */
 int sti() {
   asm volatile ("sti");
   return 0;
 }
 
-/* cli –½—ß‚ğÀs
+/* cli å‘½ä»¤ã‚’å®Ÿè¡Œ
  */
 int cli() {
   asm volatile ("cli");
   return 0;
 }
 
-/* hlt –½—ß‚ÅƒvƒƒZƒbƒT‚ğ’â~‚³‚¹‚é
+/* hlt å‘½ä»¤ã§ãƒ—ãƒ­ã‚»ãƒƒã‚µã‚’åœæ­¢ã•ã›ã‚‹
  */
 int halt() {
   asm volatile ("hlt");
   return 0;
 }
 
-/* sti –½—ß‚Æ hlt –½—ß‚ğ˜A‘±‚µ‚ÄÀs
- * sti ‚µ‚Ä‚©‚ç hlt ‚Ü‚Å‚Ì‚í‚¸‚©‚ÌŠÔ‚É
- * Š„‚è‚İ‚ª”­¶‚µ‚È‚¢‚æ‚¤‚É‚·‚éB
+/* sti å‘½ä»¤ã¨ hlt å‘½ä»¤ã‚’é€£ç¶šã—ã¦å®Ÿè¡Œ
+ * sti ã—ã¦ã‹ã‚‰ hlt ã¾ã§ã®ã‚ãšã‹ã®æ™‚é–“ã«
+ * å‰²ã‚Šè¾¼ã¿ãŒç™ºç”Ÿã—ãªã„ã‚ˆã†ã«ã™ã‚‹ã€‚
  */
 int sti_and_halt() {
   asm volatile ("sti\n\thlt");
