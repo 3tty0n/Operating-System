@@ -12,38 +12,38 @@ int fdc_running = 0;
  */
 void boot() {
   char* src;
-	char* dest;
-	int i;
-	register_handlers();
+  char* dest;
+  int i;
+  register_handlers();
 
   /* ここで pingpong.exe を読み込んで実行する */
-	
-	fdc_initialize();
 
-	fdc_read(1, 1, 18);
-	while (fdc_running) halt();
-	fdc_read2();
+  fdc_initialize();
 
-	src = (char*)0x80000;
-	dest = (char*)0x10000;
+  fdc_read(1, 1, 18);
+  while (fdc_running) halt();
+  fdc_read2();
 
-	for (i = 0; i < 512; i ++) {
-		*(dest + i) = *(src + i);
-	}
+  src = (char*)0x80000;
+  dest = (char*)0x10000;
 
-	fdc_read(2, 0, 1);
-	while (fdc_running) halt();
+  for (i = 0; i < 512; i ++) {
+  	*(dest + i) = *(src + i);
+  }
 
-	fdc_read2();
-	for (i = 0; i < 512; i++) {
-		*(dest + 512 + i) = *(src + i);
-	}
-	
+  fdc_read(2, 0, 1);
+  while (fdc_running) halt();
 
-	void (*fptr)();
+  fdc_read2();
+  for (i = 0; i < 512; i++) {
+  	*(dest + 512 + i) = *(src + i);
+  }
 
-	fptr = (void (*)())0x10000;
-	(*fptr)();
+
+  void (*fptr)();
+
+  fptr = (void (*)())0x10000;
+  (*fptr)();
 
   while (1)
     halt();
